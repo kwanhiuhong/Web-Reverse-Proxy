@@ -7,7 +7,8 @@ import os
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.proxy import ReverseProxy
+from src.server import ProxyServer
+from src.models import HTTPRequest, HTTPResponse
 
 class TestReverseProxy(unittest.TestCase):
     """Test cases for ReverseProxy implementation."""
@@ -15,7 +16,7 @@ class TestReverseProxy(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
         # Arrange
-        self.proxy = ReverseProxy(
+        self.proxy = ProxyServer(
             host="localhost",
             port=8080,
             backend_servers={"/test": "http://localhost:8000"}
@@ -30,7 +31,7 @@ class TestReverseProxy(unittest.TestCase):
     def test_proxy_initialization(self):
         """Test proxy initialization with custom configuration."""
         # Arrange
-        custom_proxy = ReverseProxy(
+        custom_proxy = ProxyServer(
             host="127.0.0.1",
             port=8081,
             backend_servers={"/api": "http://localhost:9000"}
@@ -44,7 +45,7 @@ class TestReverseProxy(unittest.TestCase):
             {"/api": "http://localhost:9000"}
         )
 
-    def test_parse_request(self):
+    def test_request_parsing(self):
         """Test HTTP request parsing."""
         # Arrange
         request_data = (
@@ -55,23 +56,24 @@ class TestReverseProxy(unittest.TestCase):
         )
         
         # Act
-        result = self.proxy._parse_request(request_data)
+        result = HTTPRequest.from_raw_data(request_data)
         
         # Assert
-        self.assertEqual(result['method'], "GET")
-        self.assertEqual(result['path'], "/test/path")
-        self.assertEqual(result['protocol'], "HTTP/1.1")
-        self.assertEqual(result['headers']['Host'], "localhost:8080")
+        self.assertEqual(result.method, "GET")
+        self.assertEqual(result.path, "/test/path")
+        self.assertEqual(result.protocol, "HTTP/1.1")
+        self.assertEqual(result.headers['Host'], "localhost:8080")
 
-    def test_create_error_response(self):
+    def test_error_response(self):
         """Test error response creation."""
         # Act
-        response = self.proxy._create_error_response(404, "Not Found")
+        response = HTTPResponse.create_error(404, "Not Found")
+        response_str = response.to_string()
         
         # Assert
-        self.assertIn("HTTP/1.1 404 Not Found", response)
-        self.assertIn("Content-Type: text/plain", response)
-        self.assertIn("Content-Length:", response)
+        self.assertIn("HTTP/1.1 404 Not Found", response_str)
+        self.assertIn("Content-Type: text/plain", response_str)
+        self.assertIn("Content-Length:", response_str)
 
     def tearDown(self):
         """Clean up after each test."""

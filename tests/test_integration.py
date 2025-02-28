@@ -12,7 +12,7 @@ import socket
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.proxy import ReverseProxy
+from src.server import ProxyServer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class TestReverseProxyIntegration(unittest.TestCase):
 
         # Start proxy server
         cls.proxy_port = 8080
-        cls.proxy = ReverseProxy(
+        cls.proxy = ProxyServer(
             host="localhost",
             port=cls.proxy_port,
             backend_servers={
