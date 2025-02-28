@@ -3,6 +3,7 @@ import threading
 import logging
 from typing import Dict, Tuple, Optional
 from urllib.parse import urlparse
+import select
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ class ReverseProxy:
         }
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._running = False
+        self._timeout = 5 # seconds
 
     @property
     def host(self) -> str:
@@ -50,25 +53,42 @@ class ReverseProxy:
         """Get the server socket."""
         return self._server_socket
 
+    def shutdown(self) -> None:
+        """Shutdown the proxy server gracefully."""
+        self._running = False
+        # Create a dummy connection to unblock accept()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((self._host, self._port))
+        except:
+            pass
+        self._server_socket.close()
+
     def start(self) -> None:
         """Start the reverse proxy server."""
+        self._running = True
         try:
             self._server_socket.bind((self._host, self._port))
-            self._server_socket.listen(128)  # Maximum backlog of connections
+            self._server_socket.listen(128)
             logger.info(f"Reverse proxy started on {self._host}:{self._port}")
             
-            while True:
-                client_socket, client_address = self._server_socket.accept()
-                # Handle each client in a separate thread
-                thread = threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket, client_address)
-                )
-                thread.daemon = True
-                thread.start()
+            while self._running:
+                try:
+                    client_socket, client_address = self._server_socket.accept()
+                    if not self._running:
+                        client_socket.close()
+                        break
+                    # Handle each client in a separate thread
+                    thread = threading.Thread(
+                        target=self._handle_client,
+                        args=(client_socket, client_address)
+                    )
+                    thread.daemon = True
+                    thread.start()
+                except Exception as e:
+                    if self._running:  # Only log if we're still meant to be running
+                        logger.error(f"Server error: {e}")
                 
-        except Exception as e:
-            logger.error(f"Server error: {e}")
         finally:
             self._server_socket.close()
 
@@ -81,24 +101,46 @@ class ReverseProxy:
             client_socket: Socket object for client connection
             client_address: Tuple of client's IP and port
         """
+        client_socket.settimeout(self._timeout)
+        
         try:
-            # Receive client request
-            request_data = client_socket.recv(4096)
+            # Read request using select
+            request_data = bytearray()
+            while True:
+                ready = select.select([client_socket], [], [], self._timeout)
+                if not ready[0]:  # Timeout
+                    break
+                
+                chunk = client_socket.recv(4096)
+                if not chunk:
+                    break
+                
+                request_data.extend(chunk)
+                if b'\r\n\r\n' in request_data:  # End of headers
+                    # If Content-Length is present, read the body
+                    headers = request_data.split(b'\r\n\r\n')[0].decode('utf-8')
+                    for line in headers.split('\r\n'):
+                        if line.lower().startswith('content-length:'):
+                            content_length = int(line.split(':')[1].strip())
+                            while len(request_data) < len(headers) + 4 + content_length:
+                                chunk = client_socket.recv(4096)
+                                if not chunk:
+                                    break
+                                request_data.extend(chunk)
+                    break
+
             if not request_data:
                 return
 
-            # Parse the request
+            # Parse and forward request
             request = self._parse_request(request_data.decode('utf-8'))
             if not request:
                 return
 
-            # Forward request to backend
             response = self._forward_request(request)
-            
-            # Send response back to client
             if response:
-                client_socket.send(response.encode('utf-8'))
-                
+                client_socket.sendall(response.encode('utf-8'))
+
         except Exception as e:
             logger.error(f"Error handling client {client_address}: {e}")
         finally:
@@ -152,7 +194,6 @@ class ReverseProxy:
         Returns:
             Response string from backend server
         """
-        # Find matching backend server
         backend_url = None
         for path_prefix, server in self._backend_servers.items():
             if request['path'].startswith(path_prefix):
@@ -163,30 +204,37 @@ class ReverseProxy:
             return self._create_error_response(404, "Not Found")
 
         try:
-            # Parse backend URL
             parsed_url = urlparse(backend_url)
             backend_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            backend_socket.connect((parsed_url.hostname, 
-                                 parsed_url.port or 80))
+            backend_socket.settimeout(self._timeout)
 
-            # Forward the original request
-            backend_socket.send(request['raw'].encode('utf-8'))
-            
-            # Receive response from backend
-            response = b""
-            while True:
-                data = backend_socket.recv(4096)
-                if not data:
-                    break
-                response += data
+            try:
+                # Connect to backend
+                backend_socket.connect((parsed_url.hostname, parsed_url.port or 80))
+                
+                # Send request
+                backend_socket.sendall(request['raw'].encode('utf-8'))
+                
+                # Use select for reading response
+                response = bytearray()
+                while True:
+                    ready = select.select([backend_socket], [], [], self._timeout)
+                    if not ready[0]:  # Timeout
+                        break
+                    
+                    data = backend_socket.recv(4096)
+                    if not data:
+                        break
+                    response.extend(data)
 
-            return response.decode('utf-8')
+                return response.decode('utf-8')
+
+            finally:
+                backend_socket.close()
 
         except Exception as e:
             logger.error(f"Error forwarding request: {e}")
             return self._create_error_response(502, "Bad Gateway")
-        finally:
-            backend_socket.close()
 
     def _create_error_response(self, status_code: int, 
                              message: str) -> str:

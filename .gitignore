@@ -5,3 +5,5 @@ reverse_proxy.egg-info/top_level.txt
 src/__pycache__/__init__.cpython-39.pyc
 src/__pycache__/proxy.cpython-39.pyc
 tests/__pycache__/test_proxy.cpython-39.pyc
+tests/__pycache__/__init__.cpython-39.pyc
+tests/__pycache__/test_integration.cpython-39.pyc
