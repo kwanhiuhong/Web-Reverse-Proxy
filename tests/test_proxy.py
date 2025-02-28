@@ -75,7 +75,13 @@ class TestReverseProxy(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after each test."""
-        self.proxy.server_socket.close()
+        # First shutdown the proxy gracefully
+        self.proxy.shutdown()
+        # Wait for the proxy thread to finish
+        self.proxy_thread.join(timeout=1)
+        # Now it's safe to close the socket
+        if hasattr(self.proxy, 'server_socket'):
+            self.proxy.server_socket.close()
 
 if __name__ == '__main__':
     unittest.main() 
