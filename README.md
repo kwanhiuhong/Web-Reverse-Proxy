@@ -9,9 +9,9 @@ A simple Http Web Proxy to route requests from clients to target servers, minima
 3. Run the proxy:
 
 ```python
-from src.proxy import ReverseProxy
+from src.server import ProxyServer
 
-proxy = ReverseProxy(
+proxy = ProxyServer(
     host="localhost",
     port=8080,
     backend_servers={
@@ -21,6 +21,46 @@ proxy = ReverseProxy(
 )
 proxy.start()
 ```
+
+## Architecture
+
+The proxy is built with a modular architecture consisting of several components:
+
+### Components
+
+1. **ProxyServer** (`src/server.py`)
+
+   - Core server implementation
+   - Manages socket connections
+   - Handles client connection acceptance
+   - Delegates request processing to RequestHandler
+
+2. **RequestHandler** (`src/handler.py`)
+
+   - Processes individual HTTP requests
+   - Manages connection to backend servers
+   - Handles request forwarding and response processing
+   - Implements timeout and error handling
+
+3. **HTTP Models** (`src/models.py`)
+
+   - `HTTPRequest`: Represents and parses HTTP requests
+   - `HTTPResponse`: Represents and formats HTTP responses
+   - Provides clean interfaces for HTTP message handling
+
+4. **Configuration** (`src/config.py`)
+   - Manages proxy configuration
+   - Supports both programmatic and file-based configuration
+   - Handles defaults and validation
+
+### Data Flow
+
+1. Client sends request → ProxyServer accepts connection
+2. ProxyServer creates new thread with RequestHandler
+3. RequestHandler parses request using HTTPRequest model
+4. Request is forwarded to appropriate backend server
+5. Response is parsed using HTTPResponse model
+6. Response is sent back to client
 
 ## Design Decisions and Implementation Details
 
@@ -32,7 +72,7 @@ proxy.start()
 
 4. **Error Handling**: Comprehensive error handling and logging throughout the codebase.
 
-5. **Good Test Coverage**: Tests follow arrange act assert pattern and we aim to cover all major functions and customer user journeys (CUJs).
+5. **Comprehensive Test Coverage**: Tests follow arrange act assert pattern and we aim to cover all major functions and customer user journeys (CUJs) through both integration and unit tests.
 
 ## Limitations
 
@@ -54,26 +94,40 @@ To scale this implementation:
 
 ## Security Improvements
 
-1. Implement request rate limiting or DDoS protection.
+1. Implement request rate limiting or DDoS protection
 2. Add input validation and sanitization
 3. Implement authentication/authorization
 4. Add request/response filtering
 5. Implement HTTP security headers
 
-## Resources Used
-
-1. Gemini Code Assit:
-
-   - Mainly for testing purposes as it's launched a few days ago. Did a pretty bad job though - spent 2 hours of prompting and still wasn't able to run the tests successfully.
-
-2. Cursor:
-
-   - With Sonnet 3.5, still the best coding model so far for most use cases, have a running version after only 2 prompts.
-
 ## Testing
 
-Run the tests using:
+The test suite includes both unit and integration tests:
+
+1. **Unit Tests** (`tests/test_proxy.py`)
+
+   - Tests individual components in isolation
+   - Covers request/response parsing
+   - Tests error handling
+   - Validates configuration
+
+2. **Integration Tests** (`tests/test_integration.py`)
+   - End-to-end testing with real HTTP requests
+   - Tests concurrent request handling
+   - Validates different HTTP methods
+   - Tests error scenarios
+
+Run all the tests using:
 
 ```bash
 python -m unittest discover tests
 ```
+
+## Resources Used
+
+1. Gemini Code Assist:
+
+   - Mainly for testing purposes as it's launched a few days ago. Did a pretty bad job though - spent 2 hours of prompting and still wasn't able to run the tests successfully.
+
+2. Cursor:
+   - With Sonnet 3.5, still the best coding model so far for most use cases, have a basic running version after only 2 prompts.
