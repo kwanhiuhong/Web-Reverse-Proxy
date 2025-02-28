@@ -1,20 +1,6 @@
-# cohere_interview
+# HTTP Web Reverse Proxy
 
-reverse_proxy/
-├── src/
-│ ├── **init**.py
-│ ├── proxy.py
-│ └── config.py
-├── tests/
-│ ├── **init**.py
-│ ├── test_proxy.py
-│ └── test_config.py
-├── README.md
-└── requirements.txt
-
-# HTTP Reverse Proxy Implementation
-
-A pure Python implementation of an HTTP reverse proxy without using third-party libraries.
+A simple Http Web Proxy to route requests from clients to target servers, minimal support for now with only request routing. (No security enhancement, no scaling support, no DDoS protection, rate limiting, etc.)
 
 ## Getting Started
 
