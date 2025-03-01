@@ -155,7 +155,6 @@ class TestReverseProxyIntegration(unittest.TestCase):
 
     def test_post_request_through_proxy(self):
         """Test POST request through proxy to backend server."""
-        logger.info("Starting POST request test")
         # Arrange
         proxy_url = f"http://localhost:{self.proxy_port}/api/test"
         post_data = {"key": "value", "test": 123}
@@ -167,8 +166,6 @@ class TestReverseProxyIntegration(unittest.TestCase):
             timeout=10,
             headers={'Connection': 'close'}  # Force connection close
         )
-        
-        logger.info(f"Response status: {response.status_code}")
         data = response.json()
 
         # Assert
@@ -193,7 +190,6 @@ class TestReverseProxyIntegration(unittest.TestCase):
 
     def test_large_payload(self):
         """Test handling of large payload."""
-        logger.info("Starting large payload test")
         # Arrange
         proxy_url = f"http://localhost:{self.proxy_port}/api/test"
         large_data = {
@@ -207,8 +203,6 @@ class TestReverseProxyIntegration(unittest.TestCase):
             timeout=10,
             headers={'Connection': 'close'}  # Force connection close
         )
-        
-        logger.info(f"Response status: {response.status_code}")
         data = response.json()
 
         # Assert
@@ -218,6 +212,7 @@ class TestReverseProxyIntegration(unittest.TestCase):
 
     def test_multiple_concurrent_requests(self):
         """Test handling multiple concurrent requests."""
+        # Arrange
         def make_request():
             try:
                 response = requests.get(
@@ -239,8 +234,6 @@ class TestReverseProxyIntegration(unittest.TestCase):
             )
             threads.append(thread)
             thread.start()
-
-        # Act: Wait for all threads to complete
         for thread in threads:
             thread.join(timeout=30)
 

@@ -65,15 +65,28 @@ class RequestHandler:
                 break
             
             request_data.extend(chunk)
-            if b'\r\n\r\n' in request_data:  # End of headers
-                # If Content-Length is present, read the body
+            # HTTP messages have headers and body separated by double CRLF (\r\n\r\n)
+            if b'\r\n\r\n' in request_data:  # Found the end of headers marker
+                # Split the request into headers and potential body
+                # headers will be everything before the double CRLF
                 headers = request_data.split(b'\r\n\r\n')[0].decode('utf-8')
+                
+                # Look for Content-Length header to know if we need to read more data
                 for line in headers.split('\r\n'):
                     if line.lower().startswith('content-length:'):
+                        # Extract the content length value
                         content_length = int(line.split(':')[1].strip())
-                        while len(request_data) < len(headers) + 4 + content_length:
+                        
+                        # Calculate total expected length:
+                        # len(headers) = length of all headers
+                        # + 4 = length of the separator (\r\n\r\n)
+                        # + content_length = length of the body
+                        total_length = len(headers) + 4 + content_length
+                        
+                        # Keep reading until we have the complete message
+                        while len(request_data) < total_length:
                             chunk = client_socket.recv(4096)
-                            if not chunk:
+                            if not chunk:  # Connection closed
                                 break
                             request_data.extend(chunk)
                 break

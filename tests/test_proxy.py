@@ -30,7 +30,7 @@ class TestReverseProxy(unittest.TestCase):
 
     def test_proxy_initialization(self):
         """Test proxy initialization with custom configuration."""
-        # Arrange
+        # Arrange and Act
         custom_proxy = ProxyServer(
             host="127.0.0.1",
             port=8081,
