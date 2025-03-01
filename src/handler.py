@@ -52,7 +52,13 @@ class RequestHandler:
             client_socket.close()
 
     def _read_request(self, client_socket: socket.socket) -> Optional[bytearray]:
-        """Read the complete HTTP request from the client socket."""
+        """Read the complete HTTP request from the client socket.
+        
+        HTTP/1.1 specification (RFC 7230) requires:
+        - CRLF (\r\n) for single line endings
+        - Double CRLF (\r\n\r\n) to separate headers from body
+        - This is independent of the operating system's line endings
+        """
         request_data = bytearray()
         
         while True:
@@ -65,13 +71,15 @@ class RequestHandler:
                 break
             
             request_data.extend(chunk)
-            # HTTP messages have headers and body separated by double CRLF (\r\n\r\n)
+            # In HTTP, headers and body are ALWAYS separated by \r\n\r\n
+            # regardless of the operating system's line endings
             if b'\r\n\r\n' in request_data:  # Found the end of headers marker
                 # Split the request into headers and potential body
                 # headers will be everything before the double CRLF
                 headers = request_data.split(b'\r\n\r\n')[0].decode('utf-8')
                 
-                # Look for Content-Length header to know if we need to read more data
+                # HTTP headers are separated by CRLF
+                # Content-Length if present indicates body length in bytes
                 for line in headers.split('\r\n'):
                     if line.lower().startswith('content-length:'):
                         # Extract the content length value
@@ -79,7 +87,7 @@ class RequestHandler:
                         
                         # Calculate total expected length:
                         # len(headers) = length of all headers
-                        # + 4 = length of the separator (\r\n\r\n)
+                        # + 4 = length of the double CRLF separator (\r\n\r\n)
                         # + content_length = length of the body
                         total_length = len(headers) + 4 + content_length
                         
